@@ -1,21 +1,15 @@
 #!/usr/bin/env python
 
-#import entity
-#import ball
-#import paddle
-import table
+import settings
+import entity
 
 import pyglet
 
-class Game(object):
-    def __init__(self, caption='Pongy', width=600, height=400, fullscreen=False):
-        # Game title
-        self.caption = caption
 
-        # Game window dimensions
-        self.width = width
-        self.height = height
-        self.fullscreen = fullscreen
+class Game(object):
+    # Grab settings
+
+    def __init__(self):
 
         # Is the game running?
         self.is_running = True
@@ -23,27 +17,47 @@ class Game(object):
         # Is the game paused?
         self.is_paused = False
 
-        if self.fullscreen:
-            self.game_window = pyglet.window.Window(caption=self.caption, fullscreen=self.fullscreen)
+        if S.fullscreen:
+            self.game_window = pyglet.window.Window(caption=S.caption,
+                                                    width=S.window_width,
+                                                    height=S.window_height,
+                                                    fullscreen=S.fullscreen)
         else:
-            self.game_window = pyglet.window.Window(caption=self.caption, width=self.width, height=self.height)
+            self.game_window = pyglet.window.Window(caption=S.caption,
+                                                    width=S.window_width,
+                                                    height=S.window_height)
 
-        self.game_table = table.Table(self.width, self.height)
+        self.new_game()
 
     def new_game(self):
-        pass
+        self.game_table = entity.Table()
+        self.paddle_1 = entity.Paddle(1)
+        self.paddle_2 = entity.Paddle(2)
+        self.ball = entity.Ball()
+        self.score_1 = entity.Score(1)
+        self.score_1.score = 10
+        self.score_2 = entity.Score(2)
 
     def toggle_pause(self):
         self.is_paused = not self.is_paused
 
-    def update(self, dt):
+    def draw(self):
         self.game_window.clear()
         self.game_table.draw()
-        
+        self.paddle_1.draw()
+        self.paddle_2.draw()
+        self.ball.draw()
+        self.score_1.draw()
+        self.score_2.draw()
+
+    def update(self, dt):
+        self.ball.update(dt)
+        self.ball.check_collision(self.score_1, self.score_2)
+        self.draw()
 
 
 if __name__ == '__main__':
+    S = settings.Config()
     game = Game()
     pyglet.clock.schedule_interval(game.update, 1/120)
     pyglet.app.run()
-
