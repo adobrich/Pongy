@@ -1,33 +1,27 @@
-from enum import Enum
+import settings
+
 import random
 
 import pyglet
 
 
-class Entity(object):
-    """Base class for in-game objects.
-
-    Attributes:
-        tx (float): objects x coordinate.
-        ty (float): objects y coordinate.
-        tz (float): objects z coordinate.
-        rx (float): objects x rotation.
-        ry (float): objects y rotation.
-        rz (float): objects z rotation.
-        color (:obj:`list` of `float`): color [r, g, b, a].
-    """
-    def __init__(self, color=[1.0, 1.0, 1.0, 1.0]):
+class Drawable(object):
+    """Base class for drawable objects."""
+    def __init__(self, x=0, y=0, z=0, rx=0, ry=0, rz=0,
+                 color=[1.0, 1.0, 1.0, 1.0]):
         # Position
-        self.tx = 0
-        self.ty = 0
-        self.tz = 0
+        self.x = x
+        self.y = y
+        self.z = z
 
         # Rotation
-        self.rx = 0
-        self.ry = 0
-        self.rz = 0
+        self.rx = rx
+        self.ry = ry
+        self.rz = rz
 
         self.color = color
+
+        self.render_queue = pyglet.graphics.Batch()
 
     def set_properties(self):
         """Reset matrix then set objects position,
@@ -37,7 +31,7 @@ class Entity(object):
         pyglet.gl.glLoadIdentity()
 
         # Set position
-        pyglet.gl.glTranslatef(self.tx, self.ty, self.tz)
+        pyglet.gl.glTranslatef(self.x, self.y, self.z)
 
         # Set rotation
         pyglet.gl.glRotatef(self.rx, 1, 0, 0)
@@ -47,146 +41,123 @@ class Entity(object):
         pyglet.gl.glColor4f(*self.color)
 
 
-class Table(Entity):
+class Rectangle(Drawable):
+    """Create a rectangle with provided size and location."""
+    def __init__(self, width, height, x, y):
+        """Inits Rectangle with size and (x, y) coordinates."""
+        super(Rectangle, self).__init__(x, y)
+        self.half_width = width / 2
+        self.half_height = height / 2
+
+        self.render_queue.add(4, pyglet.gl.GL_QUADS, None, ('v2f', (
+                              -self.half_width, self.half_height,
+                              self.half_width, self.half_height,
+                              self.half_width, -self.half_height,
+                              -self.half_width, -self.half_height)))
+
+    def draw(self):
+        """Render rectangle."""
+        self.set_properties()
+        self.render_queue.draw()
+
+
+class Table(Drawable):
     """Draw the pongy table; it's just a dashed line down the middle
     of the screen.
-
-    Attributes:
-        width (int): table width.
-        height (int): table height.
-        gutter_width (int): area behind player where ball is out of bounds.
     """
-    def __init__(self, width=600, height=400, gutter_width=50):
+    def __init__(self, width=800, height=500, gutter_width=100):
         """Inits Table with default values."""
         super(Table, self).__init__()
         self.width = width
         self.height = height
         self.gutter_width = gutter_width
 
+        # We want 30 dashed lines to represent the net
+        self.dash_count = 30
+        self.dash_length = self.height / (self.dash_count * 2)
+        self.dash_start = self.dash_length / 2
+        self.dash_end = self.dash_length + self.dash_length / 2
+        self.dash_width = 2
+
+        for i in range(self.dash_count):
+            self.render_queue.add(2, pyglet.gl.GL_LINES, None, ('v2f', (
+                                  self.width / 2, self.dash_start,
+                                  self.width / 2, self.dash_end)))
+            self.dash_start += 2 * self.dash_length
+            self.dash_end += 2 * self.dash_length
+
     def draw(self):
         """Render table."""
-        # TODO: Actually make this a dashed line instead of a solid line.
         self.set_properties()
+        # Set dash width
         pyglet.gl.glPushAttrib(pyglet.gl.GL_LINE_BIT)
-        pyglet.gl.glLineWidth(2)
-        pyglet.graphics.draw(2, pyglet.gl.GL_LINES, ('v2f', (
-                             self.width / 2, 0.0,
-                             self.width / 2, self.height)))
+        pyglet.gl.glLineWidth(self.dash_width)
+        self.render_queue.draw()
+        # Unset dash width
         pyglet.gl.glPopAttrib()
 
 
-class Paddle(Entity):
-    """Paddle that represents the player.
-
-    Attributes:
-        player = (:obj:`Enum`): one of the three possible values.
-        half_height (float): half paddle height.
-        half_width (float): half paddle width.
-        tx (float): objects x coordinate.
-        ty (float): objects y coordinate.
-    """
+class Paddle(Rectangle):
+    """Paddle that represents the player."""
     def __init__(self, player, table, width=8, height=40):
         """Inits Paddle with default values."""
-        super(Paddle, self).__init__()
+        if player == settings.Player.PLAYER_1:
+            self.x = table.gutter_width
+            self.y = table.height / 2
+        if player == settings.Player.PLAYER_2 or player == settings.Player.AI:
+            self.x = table.width - table.gutter_width
+            self.y = table.height / 2
+        super(Paddle, self).__init__(width, height, self.x, self.y)
         self.half_width = width / 2
         self.half_height = height / 2
-        if player == Player.PLAYER_1:
-            self.tx = table.gutter_width
-            self.ty = table.height / 2
-        if player == Player.PLAYER_2 or player == Player.AI:
-            self.tx = table.width - table.gutter_width
-            self.ty = table.height / 2
+        # Initial velocity
+        self.velocity = 0
 
-    def draw(self):
-        """Render paddle."""
-        self.set_properties()
-        pyglet.graphics.draw(4, pyglet.gl.GL_QUADS, ('v2f', (
-                             -self.half_width, self.half_height,
-                             self.half_width, self.half_height,
-                             self.half_width, -self.half_height,
-                             -self.half_width, -self.half_height)))
+    def move_up(self):
+        self.velocity = 10
+
+    def move_down(self):
+        self.velocity = -10
+
+    def stop(self):
+        self.velocity = 0
 
 
-class Ball(Entity):
-    """Create a ball (square) with provided size and location.
-
-    Attributes:
-        tx (float): squares x coordinate.
-        ty (float): squares y coordinate.
-        size (int): length of the squares side.
-        direction (:obj:`Enum`) direction ball should be served.
-        half_size (float): half the length of a squares side.
-        vel_x (float): velocity of the ball in the x direction.
-        vel_y (float): velocity of the ball in the y direction.
-        ball (:obj:`Square`): square representing the ball.
-    """
-    def __init__(self, size, table):
-        super(Ball, self).__init__()
-        self.tx = table.width / 2
-        self.ty = table.height / 2
-        self.direction = Direction.RIGHT
-        if self.direction == Direction.RIGHT:
-            self.vel_x = random.randrange(120, 240) / 60.0
-            self.vel_y = random.randrange(60, 180) / 60.0
+class Ball(Rectangle):
+    """Create a ball (square) with provided size and location."""
+    def __init__(self, direction, width=8, height=8):
+        self.x = settings.window_width / 2
+        self.y = settings.window_height / 2
+        super(Ball, self).__init__(width, height, self.x, self.y)
+        self.direction = direction
+        if self.direction == settings.Direction.RIGHT:
+            self.vel_x = random.randrange(3, 7)
+            self.vel_y = random.randrange(-5, 7)
         else:
-            self.vel_x = -random.randrange(120, 240) / 60.0
-            self.vel_y = -random.randrange(60, 180) / 60.0
+            self.vel_x = -random.randrange(3, 7)
+            self.vel_y = random.randrange(-5, 7)
 
-        self.ball = Square(size, self.tx, self.ty)
+    def bounce_x(self):
+        self.vel_x *= -1
+
+    def bounce_y(self):
+        self.vel_y *= -1
 
     def update(self, dt):
-        self.ball.tx += self.vel_x
-        self.ball.ty += self.vel_y
-
-    # TODO: complete this
-    def check_collision(self):
-        pass
-
-    def draw(self):
-        self.set_properties()
-        self.ball.draw()
+        self.x += self.vel_x
+        self.y += self.vel_y
 
 
-class Square(Entity):
-    """Create a square with provided size and location.
-
-    Attributes:
-        tx (float): squares x coordinate.
-        ty (float): squares y coordinate.
-        half_size (float): half the length of a squares side.
-    """
-    def __init__(self, size, x, y):
-        """Inits Square with size and (x, y) coordinates."""
-        super(Square, self).__init__()
-        self.tx = x
-        self.ty = y
-        self.half_size = size / 2
-
-    def draw(self):
-        """Render square."""
-        self.set_properties()
-        pyglet.graphics.draw(4, pyglet.gl.GL_QUADS, ('v2f', (
-                             -self.half_size, self.half_size,
-                             self.half_size, self.half_size,
-                             self.half_size, -self.half_size,
-                             -self.half_size, -self.half_size)))
-
-
-class Score(Square):
-    """Displays the current score.
-
-    Attributes:
-        score (int): current score.
-        size (int): pixel size for text.
-        grid_anchor (:obj:`tuple`): coordinates for center of score grid.
-        score_grid (:obj:`list` of :obj:`tuple`): coordinates of pixels.
-    """
+class Score(Drawable):
+    """Displays the current score."""
     def __init__(self, x, y,
-                 score=0, size=6, grid_width=9, grid_height=8):
+                 score=0, pixel_size=6, grid_width=9, grid_height=8):
+        super(Score, self).__init__()
         """Inits Score with default values and (x, y) coordinates."""
         self.score = score
-        self.size = size
-        self.grid_anchor = ((grid_width / 2) * size, (grid_height / 2) * size)
+        self.pixel_size = pixel_size
+        self.grid_anchor = ((grid_width / 2) * pixel_size,
+                            (grid_height / 2) * pixel_size)
         self.score_grid = []
         # (x, y) location of top left  square relative to the grid anchor
         self.x = x - self.grid_anchor[0]
@@ -195,11 +166,16 @@ class Score(Square):
             self.score_grid.append([])
             for column in range(grid_width):
                 self.score_grid[row].append((self.x, self.y))
-                self.x += size
-            self.y -= size
+                self.x += pixel_size
+            self.y -= pixel_size
             self.x = x - self.grid_anchor[0]
+        self.score_render_queue = self.get_mask()
 
-    def get_mask(self, score):
+    def update(self):
+        self.score += 1
+        self.score_render_queue = self.get_mask()
+
+    def get_mask(self):
         """Fetches the bit mask for the provided score value.
         Only values 0 to 11 (inclusive) are available.
         """
@@ -301,53 +277,15 @@ class Score(Square):
                      [0, 0, 0, 1, 0, 0, 1, 0, 0],
                      [0, 0, 0, 1, 0, 0, 1, 0, 0]]
                }
-        return mask[score]
+        render_queue = []
+        for pos_row, mask_row in zip(self.score_grid, mask[self.score]):
+            for pos, mask in zip(pos_row, mask_row):
+                if mask:
+                    render_queue.append(Rectangle(self.pixel_size,
+                                                  self.pixel_size, pos[0], pos[1]))
+        return render_queue
 
     def draw(self):
         """Render scoreboard."""
-        draw_list = []
-        for pos_row, mask_row in zip(self.score_grid,
-                                     self.get_mask(self.score)):
-            for pos, mask in zip(pos_row, mask_row):
-                if mask:
-                    draw_list.append(Square(self.size, pos[0], pos[1]))
-        for item in draw_list:
-            item.draw()
-
-
-# TODO: Remove this testing code when done
-#def update(dt):
-#    ball.update(dt)
-#    draw(dt)
-#
-#
-#def draw(dt):
-#    window.clear()
-#    table.draw()
-#    score_1.draw()
-#    score_2.draw()
-#    paddle_1.draw()
-#    paddle_2.draw()
-#    ball.draw()
-#
-#
-#class Player(Enum):
-#    PLAYER_1 = 1
-#    PLAYER_2 = 2
-#    AI = 3
-#
-#
-#class Direction(Enum):
-#    LEFT = 1
-#    RIGHT = 2
-#
-#
-#window = pyglet.window.Window(caption='Pongy', width=600, height=400)
-#table = Table()
-#paddle_1 = Paddle(Player.PLAYER_1, table)
-#paddle_2 = Paddle(Player.PLAYER_2, table)
-#ball = Ball(8, table)
-#score_1 = Score(600 * .25, 400)
-#score_2 = Score(600 * .75, 400)
-#pyglet.clock.schedule_interval(update, 1/120)
-#pyglet.app.run()
+        for pixel in self.score_render_queue:
+            pixel.draw()
