@@ -178,6 +178,12 @@ class Paddle(Rectangle):
         """Stop paddle."""
         self.velocity = 0
 
+    def max_y(self, height):
+        self.y = height - self.half_height
+
+    def min_y(self):
+        self.y = self.half_height
+
 
 class Score(Drawable):
     """Displays the current score."""

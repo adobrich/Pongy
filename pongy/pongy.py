@@ -55,29 +55,34 @@ class Game(pyglet.window.Window):
                 self.ball.reset(self.width / 2, self.height / 2)
 
             # Update paddles
-            # TODO: check for collision on the _next_ move to prevent
-            # paddle from getting stuck
             self.paddle_one.update(dt)
             self.paddle_two.update(dt)
             if (self.has_collided(self.paddle_one, self.ball) or
-                self.has_collided(self.paddle_two, self.ball)):
+               self.has_collided(self.paddle_two, self.ball)):
                 self.ball.paddle_bounce()
-            if (self.has_collided(self.paddle_one, self.table.top) or
-                self.has_collided(self.paddle_one, self.table.bottom)):
+            if self.has_collided(self.paddle_one, self.table.top):
                 self.paddle_one.stop()
-            elif (self.has_collided(self.paddle_two, self.table.top) or
-                  self.has_collided(self.paddle_two, self.table.bottom)):
+                self.paddle_one.max_y(self.height)
+            elif self.has_collided(self.paddle_one, self.table.bottom):
+                self.paddle_one.stop()
+                self.paddle_one.min_y()
+
+            if self.has_collided(self.paddle_two, self.table.top):
                 self.paddle_two.stop()
+                self.paddle_two.max_y(self.height)
+            elif self.has_collided(self.paddle_two, self.table.bottom):
+                self.paddle_two.stop()
+                self.paddle_two.min_y()
 
         # Bounce of top and bottom of screen
         if (self.has_collided(self.ball, self.table.top) or
-            self.has_collided(self.ball, self.table.bottom)):
+           self.has_collided(self.ball, self.table.bottom)):
             self.ball.wall_bounce('y')
 
         # Bounce ball of left and right walls if game is not in progress
         if not self.game_in_progress:
             if (self.has_collided(self.ball, self.table.left) or
-                self.has_collided(self.ball, self.table.right)):
+               self.has_collided(self.ball, self.table.right)):
                 self.ball.wall_bounce('x')
 
     def on_key_press(self, symbol, modifiers):
