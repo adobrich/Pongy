@@ -1,5 +1,4 @@
 import random
-import math
 
 import pyglet
 
@@ -7,7 +6,7 @@ import pyglet
 class Drawable(object):
     """Base class for all drawable objects."""
     def __init__(self, x=0, y=0, z=0, rx=0, ry=0, rz=0,
-             color=[1.0, 1.0, 1.0, 1.0]):
+                 color=[1.0, 1.0, 1.0, 1.0]):
         # Position
         self.x = x
         self.y = y
@@ -85,8 +84,10 @@ class Table(Drawable):
     def set_game_mode(self):
         """Move left and right collision zone to allow ball to leave
         the screen."""
-        self.left = CollisionZone(-150, self.height / 2, 100, self.height * 2)
-        self.right = CollisionZone(self.width + 150, self.height / 2, 100, self.height * 2)
+        self.top = CollisionZone(self.width / 2, self.height + 50, self.width + 200, 100)
+        self.bottom = CollisionZone(self.width / 2, -50, self.width + 200, 100)
+        self.left = CollisionZone(-150, self.height / 2, 100, self.height)
+        self.right = CollisionZone(self.width + 150, self.height / 2, 100, self.height)
 
     def set_demo_mode(self):
         """Prevent ball from leaving the screen"""
@@ -142,7 +143,6 @@ class Ball(Rectangle):
         # . |\  y=---
         self.vel_x *= -1
 
-
     def reset(self, x, y):
         """Reset ball to (x, y) co-ordinates and serve in random direction."""
         self.x = x
@@ -173,10 +173,10 @@ class Paddle(Rectangle):
     def move_down(self):
         """Move paddle down."""
         self.velocity = -self.speed
-    
+
     def stop(self):
         """Stop paddle."""
-        self.velocity = 0;
+        self.velocity = 0
 
 
 class Score(Drawable):
